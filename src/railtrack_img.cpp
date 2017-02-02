@@ -17,10 +17,10 @@ RailTrack_IMG::RailTrack_IMG(const string &path)
   waitKey(0);
 
   /** Create some points */
-  poly_points[0][0]  = Point((m_aTracks[1][0] - 50), m_aTracks[1][1]);
-  poly_points[0][1]  = Point((m_aTracks[1][2] - 20), (m_aTracks[1][3] - 20));
-  poly_points[0][2]  = Point((m_aTracks[0][0] + 20), (m_aTracks[0][1] - 20));
-  poly_points[0][3]  = Point((m_aTracks[0][2] + 50), m_aTracks[0][3]);
+  poly_points[0][0]  = Point((m_aTracks[1][0] - ROI_X), m_aTracks[1][1]);
+  poly_points[0][1]  = Point((m_aTracks[1][2] - ROI_Y), (m_aTracks[1][3] - ROI_Y));
+  poly_points[0][2]  = Point((m_aTracks[0][0] + ROI_Y), (m_aTracks[0][1] - ROI_Y));
+  poly_points[0][3]  = Point((m_aTracks[0][2] + ROI_X), m_aTracks[0][3]);
 
   imgOriginal = cv::imread(path);
   track(imgOriginal);

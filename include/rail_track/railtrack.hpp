@@ -12,9 +12,12 @@
 #include "std_msgs/Float32.h"
 #include "geometry_msgs/Point.h"
 #include <time.h>
+#include <fstream>
 
-#define DMAX 115//250//140
-#define DMIN 5//30//30
+#define DMAX 250//115//140
+#define DMIN 50//5//30
+#define ROI_X 50
+#define ROI_Y 20
 
 using namespace cv;
 using namespace std;
@@ -22,35 +25,39 @@ using namespace std;
 class RailTrack
 {
 public:
-    RailTrack();
-    float getYintersect(const Vec4f &line);
-    float getSlope(const Vec4f &line);
-    float getLength(const Vec4f &line);
-    void DoHough(const Mat &dst);
-    void showWindow(const string &title, const Mat &image);
-    Mat getTrackFeatures();
-    Mat region_of_interest(const Mat &imgCanny);
-    void getContours(const Mat &imgCanny);
-    void track(Mat &imgOriginal);
+  RailTrack();
+  ~RailTrack();
+  float getYintersect(const Vec4f &line);
+  float getSlope(const Vec4f &line);
+  float getLength(const Vec4f &line);
+  void DoHough(const Mat &dst);
+  void showWindow(const string &title, const Mat &image);
+  Mat getTrackFeatures();
+  Mat region_of_interest(const Mat &imgBin);
+  void getContours(const Mat &imgCanny);
+  void track(Mat &imgOriginal);
 
 private:
-    Mat m_imgOriginal;
-    Vec4i m_aLongestLines[2];// Choosing longest line that represents rail track
-    int m_iYmax = 0;
-    int m_Wmax = 0;
-    Point m_P;
+  Mat m_imgOriginal;
+  Vec4i m_aLongestLines[2];// Choosing longest line that represents rail track
+  int m_iYmax = 0;
+  int m_Wmax = 0;
+  Point m_P;
+  int m_canny = 350;
+  int line_number;
 
-    ros::NodeHandle n;
-    ros::Publisher lines_pub;
-    ros::Rate loop_rate;
-    geometry_msgs::Point msg_tracks;
+  ros::NodeHandle n;
+  ros::Publisher lines_pub;
+  ros::Rate loop_rate;
+  geometry_msgs::Point msg_tracks;
+
 
 protected:
-    Vec4i m_aTracks[2];
-    Point poly_points[1][4];
-    Point min;
-    Point max;
-
+  Vec4i m_aTracks[2];
+  Point poly_points[1][4];
+  Point min;
+  Point max;
+  ofstream myfile;
 };
 
 #endif // RAILTRACK_H

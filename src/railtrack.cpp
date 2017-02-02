@@ -1,5 +1,6 @@
 #include "rail_track/railtrack.hpp"
 
+
 RailTrack::RailTrack() :
   loop_rate(10)
 {
@@ -8,6 +9,12 @@ RailTrack::RailTrack() :
       m_aLongestLines[i][j] = 0;
   m_P = Point(0,0);
   lines_pub = n.advertise<geometry_msgs::Point>("lines", 1000);
+  myfile.open ("lines.txt");
+}
+
+RailTrack::~RailTrack()
+{
+  myfile.close();
 }
 
 float RailTrack::getYintersect(const Vec4f &line)
@@ -15,7 +22,7 @@ float RailTrack::getYintersect(const Vec4f &line)
   if (line[2] == line[0])
     return numeric_limits<float>::max();
   else
-    return (((line[2] * line[1]) - (line[0] * line[3])) / (line[2] - line[0]));
+    return static_cast<float>(((line[2] * line[1]) - (line[0] * line[3])) / (line[2] - line[0]));
 }
 
 float RailTrack::getSlope(const Vec4f &line)
@@ -37,14 +44,18 @@ void RailTrack::DoHough(const Mat &dst)
     for (int j = 0; j < 4; j++)
       m_aLongestLines[i][j] = 0;
 
+  line_number = 0;
+
   vector<Vec4i> lines;
 
   HoughLinesP(dst, lines, 2, CV_PI / 180, 50, 50, 10);
+  line_number = lines.size();
+  cout << line_number << "\t" << m_canny << endl;
   for (size_t i = 0; i < lines.size(); i++)
   {
     Vec4i l = lines[i];
 
-    //line(m_imgOriginal, Point(l[0], l[1]), Point(l[2], l[3]), Scalar(0, 255, 255), 2, CV_AA);
+    line(m_imgOriginal, Point(l[0], l[1]), Point(l[2], l[3]), Scalar(0, 255, 255), 1, CV_AA);
     //cout << "length: " << getLength(l) << "\tslope: " << getSlope(l) << "\tpoints: " << Point(l[0], l[1]) << "\t" << Point(l[2], l[3]) << endl;
 
     if (getSlope(l) >= 1) //to get the right track
@@ -96,8 +107,6 @@ Mat RailTrack::getTrackFeatures()
   m_aTracks[1][2] = m_P.x;
   m_aTracks[1][3] = m_P.y;
 
-  ///////////////////////////////////////////////////////////////////////////////
-  // Drawing line on the image
   line(m_imgOriginal, Point(m_aLongestLines[0][0], m_aLongestLines[0][1]), Point(m_aLongestLines[0][2], m_aLongestLines[0][3]), Scalar(0, 0, 255), 2, CV_AA);
   line(m_imgOriginal, Point(m_aLongestLines[1][0], m_aLongestLines[1][1]), Point(m_aLongestLines[1][2], m_aLongestLines[1][3]), Scalar(0, 0, 255), 2, CV_AA);
 
@@ -105,7 +114,7 @@ Mat RailTrack::getTrackFeatures()
   //line(m_imgOriginal, Point(m_aTracks[1][0], m_aTracks[1][1]), Point(m_aTracks[1][2], m_aTracks[1][3]), Scalar(0, 0, 255), 2, CV_AA);
 
   m_Wmax = abs(m_aTracks[0][2] - m_aTracks[1][0]);
-  circle(m_imgOriginal, m_P, 1, Scalar(0, 255, 0), 3, CV_AA);
+  //circle(m_imgOriginal, m_P, 1, Scalar(0, 255, 0), 3, CV_AA);
   //line(image, Point(m_aTracks[1][0], m_aTracks[1][1]), Point(m_aTracks[0][2], m_aTracks[0][3]), Scalar(255, 0, 0), 2, CV_AA);
 
   line(m_imgOriginal, poly_points[0][0], poly_points[0][1], Scalar(255, 0, 0), 2, CV_AA);
@@ -115,9 +124,9 @@ Mat RailTrack::getTrackFeatures()
   return m_imgOriginal;
 }
 
-Mat RailTrack::region_of_interest(const Mat &imgCanny)
+Mat RailTrack::region_of_interest(const Mat &imgBin)
 {
-  Mat imgPoly(imgCanny.size(), imgCanny.type());
+  Mat imgPoly(imgBin.size(), imgBin.type());
   imgPoly.setTo(0);
   Mat Result;
 
@@ -127,7 +136,7 @@ Mat RailTrack::region_of_interest(const Mat &imgCanny)
 
   fillPoly(imgPoly, ppt,npt,1, Scalar( 255, 255, 255 ), lineType);
 
-  bitwise_and(imgPoly, imgCanny, Result);
+  bitwise_and(imgPoly, imgBin, Result);
   return Result;
 }
 
@@ -145,17 +154,20 @@ void RailTrack::getContours(const Mat &imgCanny)
 
   for( int i = 0; i< contours.size(); i++ )
   {
-    for (int j = 0; j < contours.at(i).size(); j++)
+    if (contours.at(i).size() > 100)
     {
-      if ((contours.at(i).at(j).x == m_aLongestLines[0][0]) && (contours.at(i).at(j).y == m_aLongestLines[0][1]))
+      for (int j = 0; j < contours.at(i).size(); j++)
       {
-        rail_contour.push_back(contours.at(i));
-        break;
-      }
-      else if ((contours.at(i).at(j).x == m_aLongestLines[1][2]) && (contours.at(i).at(j).y == m_aLongestLines[1][3]))
-      {
-        rail_contour.push_back(contours.at(i));
-        break;
+        if ((contours.at(i).at(j).x == m_aLongestLines[0][0]) && (contours.at(i).at(j).y == m_aLongestLines[0][1]))
+        {
+          rail_contour.push_back(contours.at(i));
+          break;
+        }
+        else if ((contours.at(i).at(j).x == m_aLongestLines[1][2]) && (contours.at(i).at(j).y == m_aLongestLines[1][3]))
+        {
+          rail_contour.push_back(contours.at(i));
+          break;
+        }
       }
     }
   }
@@ -176,10 +188,14 @@ void RailTrack::getContours(const Mat &imgCanny)
   }
 
   /// Draw contours
-  for( int i = 0; i< rail_contour.size(); i++ )
+  for( int i = 0; i < rail_contour.size(); i++ )
   {
-    drawContours( m_imgOriginal, rail_contour, i, Scalar(0,0,255), 2, 8, hierarchy, 0, Point() );
+    drawContours( m_imgOriginal, rail_contour, i, Scalar(0,255,0), 2, 8, hierarchy, 0, Point() );
   }
+
+  contours.clear();
+  rail_contour.clear();
+  hierarchy.clear();
 }
 
 void RailTrack::track(Mat &imgOriginal)
@@ -193,20 +209,34 @@ void RailTrack::track(Mat &imgOriginal)
 
   //m_imgOriginal = DoCrop(m_imgOriginal);		// Cropping the image as we dont need the upper part
   cvtColor(m_imgOriginal, imgGrayscale, CV_BGR2GRAY);       // convert to grayscale
-  GaussianBlur(imgGrayscale, imgGrayscale, Size(5, 5), 0, 0, BORDER_DEFAULT);
 
-  //imgBinary = DoSobel(imgGrayscale);						// Get Sobel Gradient
-  Canny(imgGrayscale, imgCanny, 80, 200, 3);       // Get Canny Edge
+  int N = imgGrayscale.rows * imgGrayscale.cols;
+  float mean = 0;
+  for (int i = 0; i < imgGrayscale.rows; i++)
+    for (int j = 0; j < imgGrayscale.rows; j++)
+      mean += (float)imgGrayscale.at<uchar>(i, j);
+  mean = mean/N;
+  cout << mean << "\t";
+
+  GaussianBlur(imgGrayscale, imgGrayscale, Size(9, 9), 0, 0, BORDER_DEFAULT);
+
+  if (line_number > 12)
+    m_canny += 10;
+  else if (line_number < 8)
+    m_canny -= 10;
+
+  myfile << mean << "|" << line_number << "|" << m_canny << "|";
+
+  Canny(imgGrayscale, imgCanny, 0.4*m_canny, m_canny);       // Get Canny Edge
 
   imgROI = region_of_interest(imgCanny);
-
   DoHough(imgROI);
   imgHough = getTrackFeatures();
 
   getContours(imgCanny);
 
   //showWindow("imgGrayscale", imgGrayscale);
-  //showWindow("imgCanny", imgCanny);
+  showWindow("imgCanny", imgCanny);
   //showWindow("imgROI", imgROI);
   showWindow("imgHough", imgHough);
 
