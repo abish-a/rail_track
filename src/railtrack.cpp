@@ -62,7 +62,8 @@ void RailTrack::DoHough(const Mat &dst)
     for (size_t j = 0; j < lines.size(); j++)
     {
       Vec4i l_2 = lines.at(j);
-      vector<Vec4i> ext_lines = extend_lines(l, l_2);
+      vector<Vec4i> ext_lines = extendLines(l, l_2);
+
       if ((abs(ext_lines[0][2] - ext_lines[1][0]) > DMIN) && (abs(ext_lines[0][2] - ext_lines[1][0]) < DMAX))
       {
         if (getLength(l) >= getLength(m_aPrevLines[0]) && getLength(l_2) >= getLength(m_aPrevLines[1]))
@@ -91,7 +92,7 @@ void RailTrack::showWindow(const string &title, const Mat &image)
   cv::imshow(title, image);                   // show windows
 }
 
-Mat RailTrack::region_of_interest(const Mat &imgBin)
+Mat RailTrack::setROI(const Mat &imgBin)
 {
   Mat imgPoly(imgBin.size(), imgBin.type());
   Mat Result;
@@ -105,29 +106,29 @@ Mat RailTrack::region_of_interest(const Mat &imgBin)
   return Result;
 }
 
-vector<Vec4i> RailTrack::extend_lines(const Vec4i &l, const Vec4i &l_2)
+vector<Vec4i> RailTrack::extendLines(const Vec4i &l, const Vec4i &l_2)
 {
   vector<Vec4i> final_lines;
   Vec4i extended_lines;
   Point intersection;
 
-  float fSlope1 = getSlope(l);
-  float fSlope2 = getSlope(l_2);
-  float fYint1 = getYintersect(l);
-  float fYint2 = getYintersect(l_2);
-  intersection.y = (((fSlope1 * fYint2) - (fSlope2 * fYint1)) / (fSlope1 - fSlope2));
-  intersection.x = ((fYint1 - fYint2) / (fSlope2 - fSlope1));
+  float fSlope0 = getSlope(l);
+  float fSlope1 = getSlope(l_2);
+  float fYint0 = getYintersect(l);
+  float fYint1 = getYintersect(l_2);
+  intersection.y = (((fSlope0 * fYint1) - (fSlope1 * fYint0)) / (fSlope0 - fSlope1));
+  intersection.x = ((fYint0 - fYint1) / (fSlope1 - fSlope0));
 
   int iYmax = m_imgOriginal.rows - 1;
 
-  if (abs(intersection.y - 270) < 20)
+  if (abs(intersection.y - 270) < 50)
   {
     extended_lines[0] = intersection.x;
     extended_lines[1] = intersection.y;
-    extended_lines[2] = (iYmax - fYint1)/fSlope1;
+    extended_lines[2] = (iYmax - fYint0)/fSlope0;
     extended_lines[3] = iYmax;
 
-    if (abs(abs(intersection.x - extended_lines[2]) - 182) < 20)
+    if (abs(abs(intersection.x - extended_lines[2]) - 175) < 50)
       final_lines.push_back(extended_lines);
     else
     {
@@ -136,12 +137,12 @@ vector<Vec4i> RailTrack::extend_lines(const Vec4i &l, const Vec4i &l_2)
       final_lines.push_back(extended_lines);
     }
 
-    extended_lines[0] = (iYmax - fYint2)/fSlope2;
+    extended_lines[0] = (iYmax - fYint1)/fSlope1;
     extended_lines[1] = iYmax;
     extended_lines[2] = intersection.x;
     extended_lines[3] = intersection.y;
 
-    if (abs(abs(intersection.x - extended_lines[0]) - 56) < 20)
+    if (abs(abs(intersection.x - extended_lines[0]) - 60) < 50)
       final_lines.push_back(extended_lines);
     else
     {
@@ -160,7 +161,7 @@ vector<Vec4i> RailTrack::extend_lines(const Vec4i &l, const Vec4i &l_2)
   return final_lines;
 }
 
-void RailTrack::goDynamic(const Mat &imgCanny)
+void RailTrack::getCurves(const Mat &imgCanny)
 {
   float cost_function;
   vector<Point> left_rail;
@@ -168,58 +169,63 @@ void RailTrack::goDynamic(const Mat &imgCanny)
   Point left_point;
   Point right_point;
 
-  float fSlope1 = getSlope(m_aTracks[0]);
-  float fSlope2 = getSlope(m_aTracks[1]);
-  float fYint1 = getYintersect(m_aTracks[0]);
-  float fYint2 = getYintersect(m_aTracks[1]);
-  int intersection = (((fSlope1 * fYint2) - (fSlope2 * fYint1)) / (fSlope1 - fSlope2));
+  float fSlope0 = getSlope(m_aTracks[0]);
+  float fSlope1 = getSlope(m_aTracks[1]);
+  float fYint0 = getYintersect(m_aTracks[0]);
+  float fYint1 = getYintersect(m_aTracks[1]);
+  int intersection = (((fSlope0 * fYint1) - (fSlope1 * fYint0)) / (fSlope0 - fSlope1));
 
   int iWmax = m_aTracks[0][2] - m_aTracks[1][2];
   if (iWmax > 0)
   {
-    left_rail.push_back(Point(m_aTracks[1][0], m_aTracks[1][1]));
-    right_rail.push_back(Point(m_aTracks[0][2], m_aTracks[0][3]));
-    int prev_W = iWmax;
+    left_rail.push_back(Point(m_aPrevLines[1][0], m_aPrevLines[1][1]));
+    right_rail.push_back(Point(m_aPrevLines[0][2], m_aPrevLines[0][3]));
 
-    for (int i = (imgCanny.rows - 2); i >= intersection; i--) //from bottom of the image to the top
+    for (int i = m_aPrevLines[1][1]; i > intersection; i--) //from bottom of the image to the top
     {
-      cost_function = 500;
+      cost_function = 200;
       for (int j = -1; j < 2; j++)
       {
-        for (int k = -1; k < 2; k++)
+        int current_cost = imgCanny.at<uchar>(Point((left_rail.at(left_rail.size() - 1).x + j), i));
+        if (current_cost >= cost_function)
         {
-          int intensity_left = imgCanny.at<uchar>(Point((left_rail.at(left_rail.size() - 1).x + j), i));
-          int intensity_right = imgCanny.at<uchar>(Point((right_rail.at(right_rail.size() - 1).x + k), i));
-          int current_cost = intensity_left + intensity_right;
-          if (current_cost >= cost_function)
-          {
-            cost_function = current_cost;
-            left_point = Point((left_rail.at(left_rail.size() - 1).x + j), i);
-            right_point = Point((right_rail.at(right_rail.size() - 1).x + k), i);
-          }
+          cost_function = current_cost;
+          left_point = Point((left_rail.at(left_rail.size() - 1).x + j), i);
         }
       }
-
-      if (cost_function > 500)
-      {
+      if (cost_function > 200)
         left_rail.push_back(left_point);
-        right_rail.push_back(right_point);
-        for (int l = left_point.x; l < right_point.x; l++)
-          m_imgOriginal.at<Vec3b>(Point(l, i)) += Vec3b(0,150,0);
-      }
     }
-    /// Draw contours
-    /*for( int i = 0; i < left_rail.size(); i++ )
-    {
-      m_imgOriginal.at<Vec3b>(Point(left_rail.at(i).x - 1, left_rail.at(i).y)) = Vec3b(0,255,0);
-      m_imgOriginal.at<Vec3b>(Point(left_rail.at(i).x, left_rail.at(i).y)) = Vec3b(0,255,0);
-      m_imgOriginal.at<Vec3b>(Point(left_rail.at(i).x + 1, left_rail.at(i).y)) = Vec3b(0,255,0);
 
-      m_imgOriginal.at<Vec3b>(Point(right_rail.at(i).x - 1, right_rail.at(i).y)) = Vec3b(0,255,0);
-      m_imgOriginal.at<Vec3b>(Point(right_rail.at(i).x, right_rail.at(i).y)) = Vec3b(0,255,0);
-      m_imgOriginal.at<Vec3b>(Point(right_rail.at(i).x + 1, right_rail.at(i).y)) = Vec3b(0,255,0);
-    }*/
+    for (int i = m_aPrevLines[0][3]; i > intersection; i--) //from bottom of the image to the top
+    {
+      cost_function = 200;
+      for (int j = -1; j < 2; j++)
+      {
+        int current_cost = imgCanny.at<uchar>(Point((right_rail.at(right_rail.size() - 1).x + j), i));
+        if (current_cost >= cost_function)
+        {
+          cost_function = current_cost;
+          right_point = Point((right_rail.at(right_rail.size() - 1).x + j), i);
+        }
+      }
+      if (cost_function > 200)
+        right_rail.push_back(right_point);
+    }
+
+    /// Draw contours
+    for( int i = 0; i < left_rail.size(); i++ )
+      for (int j = -1; j < 2; j++)
+        m_imgOriginal.at<Vec3b>(Point(left_rail.at(i).x + j, left_rail.at(i).y)) = Vec3b(0,255,0);
+    for( int i = 0; i < right_rail.size(); i++ )
+      for (int j = -1; j < 2; j++)
+        m_imgOriginal.at<Vec3b>(Point(right_rail.at(i).x + j, right_rail.at(i).y)) = Vec3b(0,255,0);
   }
+}
+
+void RailTrack::getROI()
+{
+
 }
 
 void RailTrack::track(const Mat &imgOriginal)
@@ -238,12 +244,12 @@ void RailTrack::track(const Mat &imgOriginal)
   GaussianBlur(imgGrayscale, imgGrayscale, Size(9, 9), 0, 0, BORDER_DEFAULT);
 
   Canny(imgGrayscale, imgCanny, 80, m_canny);       // Get Canny Edge
-  imgROI = region_of_interest(imgCanny);
+  imgROI = setROI(imgCanny);
   DoHough(imgROI);
-  goDynamic(imgCanny);
+  getCurves(imgCanny);
 
   if (line_number != 10)
-    m_canny = gray_mean * 300 / 110;
+    m_canny = gray_mean * 300 / 115;
 
   myfile << gray_mean << "|" << line_number << "|" << m_canny << "|";
 

@@ -32,9 +32,10 @@ public:
   float getLength(const Vec4f &line);
   void DoHough(const Mat &dst);
   void showWindow(const string &title, const Mat &image);
-  Mat region_of_interest(const Mat &imgBin);
-  vector<Vec4i> extend_lines(const Vec4i &l, const Vec4i &l_2);
-  void goDynamic(const Mat &imgCanny);
+  Mat setROI(const Mat &imgBin);
+  vector<Vec4i> extendLines(const Vec4i &l, const Vec4i &l_2);
+  void getCurves(const Mat &imgCanny);
+  void getROI(void);
   void track(const Mat &imgOriginal);
 
 private:
