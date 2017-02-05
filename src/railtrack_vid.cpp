@@ -1,27 +1,24 @@
 #include "rail_track/railtrack_vid.hpp"
 
-RailTrack_VID::RailTrack_VID(const string &path) :
-  loop_rate(60),
-  it(n)
+RailTrack_VID::RailTrack_VID(const string &path)
 {
-  frame_pub = it.advertise("/rail_track/frame", 1);
-  Mat frame;
+  Mat imgOriginal;
+  char esc = 0;
   m_video.open(path);
 
-  while(m_video.isOpened() && n.ok())
+  if (m_video.isOpened() == false)
+    cerr << "error: Video not accessed successfully" << endl;
+
+  while(m_video.isOpened() && esc != 27)
   {
-    if (!m_video.read(frame))
+    if (!m_video.read(imgOriginal))
     {
       cerr << "error: frame not read from video" << endl;
     }
 
-    msg_frame = cv_bridge::CvImage(std_msgs::Header(), "bgr8", frame).toImageMsg();
-    frame_pub.publish(msg_frame);
-    loop_rate.sleep();
-  }
-}
+    track(imgOriginal);
 
-RailTrack_VID::~RailTrack_VID()
-{
+    esc = waitKey(1);
+  }
   m_video.release();
 }
