@@ -1,17 +1,21 @@
 #include "rail_track/railtrack_img.hpp"
 
-RailTrack_IMG::RailTrack_IMG(const string &path)
+RailTrack_IMG::RailTrack_IMG(const string &path):
+  loop_rate(30),
+  it(n)
 {
-  Mat imgOriginal = cv::imread(path);          // open image
-  if (imgOriginal.empty())						// if unable to open image
+  frame_pub = it.advertise("/rail_track/frame", 1);
+  Mat frame = cv::imread(path);          // open image
+  if (frame.empty())						// if unable to open image
     cout << "Cannot open image" << endl;
 
-  track(imgOriginal);
-  imgOriginal = cv::imread(path);
-  track(imgOriginal);
-  imgOriginal = cv::imread(path);
-  track(imgOriginal);
-  imgOriginal = cv::imread(path);
-  track(imgOriginal);
-  waitKey(0);
+  frame = cv::imread(path);
+
+  while(!frame.empty() && ros::ok())
+  {
+    msg_frame = cv_bridge::CvImage(std_msgs::Header(), "bgr8", frame).toImageMsg();
+    frame_pub.publish(msg_frame);
+    ros::spinOnce();
+    loop_rate.sleep();
+  }
 }

@@ -2,7 +2,8 @@
 
 
 RailTrack::RailTrack() :
-  loop_rate(30)
+  loop_rate(30),
+  it(n)
 {
   for (int i = 0; i < 2; i++)
     for (int j = 0; j < 4; j++)
@@ -20,7 +21,15 @@ RailTrack::RailTrack() :
   prev_track_0 = m_aTracks[0][2];
   prev_track_1 = m_aTracks[1][0];
 
-  roi_pub = n.advertise<rail_track::Roi>("/rail_track/roi", 1000);
+  roi_pub = n.advertise<rail_track::Roi>("/rail_track/roi", 1);
+  frame_sub = it.subscribe("/rail_track/frame", 1, &RailTrack::track, this);
+
+  while (ros::ok())
+  {
+    roi_pub.publish(msg_roi);
+    ros::spinOnce();
+    loop_rate.sleep();
+  }
 }
 
 RailTrack::~RailTrack()
@@ -283,15 +292,15 @@ void RailTrack::getROI()
   }
 }
 
-void RailTrack::track(const Mat &imgOriginal)
+void RailTrack::track(const sensor_msgs::ImageConstPtr& msg)
 {
+  Mat m_untouched = cv_bridge::toCvShare(msg, "bgr8")->image;
   Mat imgGrayscale;       // grayscale of input image
   Mat imgCanny;
   Mat imgROI;
   double gray_mean;
-  sensor_msgs::ImagePtr im_msg;
 
-  m_imgOriginal = imgOriginal;
+  m_imgOriginal = m_untouched;
   cvtColor(m_imgOriginal, imgGrayscale, CV_BGR2GRAY);       // convert to grayscale
   gray_mean = mean(imgGrayscale)[0];
   GaussianBlur(imgGrayscale, imgGrayscale, Size(9, 9), 0, 0, BORDER_DEFAULT);
@@ -310,7 +319,7 @@ void RailTrack::track(const Mat &imgOriginal)
   //showWindow("imgROI", imgROI);
   showWindow("Tracked", m_imgOriginal);
 
-  im_msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", imgOriginal).toImageMsg();
+  sensor_msgs::ImagePtr im_msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", m_untouched).toImageMsg();
   msg_roi.roi_0.x = poly_points[0][0].x;
   msg_roi.roi_0.y = poly_points[0][0].y;
   msg_roi.roi_0.z = 1;
@@ -324,6 +333,5 @@ void RailTrack::track(const Mat &imgOriginal)
   msg_roi.roi_3.y = poly_points[0][3].y;
   msg_roi.roi_3.z = 1;
   msg_roi.orig_image = *im_msg;
-  roi_pub.publish(msg_roi);
-  loop_rate.sleep();
+  waitKey(1);
 }
