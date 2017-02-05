@@ -23,6 +23,7 @@ RailTrack::RailTrack() :
 
   roi_pub = n.advertise<rail_track::Roi>("/rail_track/roi", 1);
   frame_sub = it.subscribe("/rail_track/frame", 1, &RailTrack::track, this);
+  myfile.open ("lines.txt");
 
   while (ros::ok())
   {
@@ -34,7 +35,7 @@ RailTrack::RailTrack() :
 
 RailTrack::~RailTrack()
 {
-
+  myfile.close();
 }
 
 float RailTrack::getYintersect(const Vec4f &line)
@@ -68,6 +69,30 @@ Point RailTrack::getIntersection(const Vec4i &l, const Vec4i &l_2)
   intersection.y = (((fSlope0 * fYint1) - (fSlope1 * fYint0)) / (fSlope0 - fSlope1));
   intersection.x = ((fYint0 - fYint1) / (fSlope1 - fSlope0));
   return intersection;
+}
+
+double RailTrack::doSobel(const Mat &image)
+{
+  Mat Result;
+  int scale = 1;
+  int delta = 0;
+  int ddepth = CV_16S;
+  /// Generate grad_x and grad_y
+  Mat grad_x, grad_y;
+  Mat abs_grad_x, abs_grad_y;
+
+  /// Gradient X
+  Sobel(image, grad_x, ddepth, 1, 0, 3, scale, delta, BORDER_DEFAULT);
+  convertScaleAbs(grad_x, abs_grad_x);
+
+  /// Gradient Y
+  Sobel(image, grad_y, ddepth, 0, 1, 3, scale, delta, BORDER_DEFAULT);
+  convertScaleAbs(grad_y, abs_grad_y);
+
+  /// Total Gradient (approximate)
+  addWeighted(abs_grad_x, 1, abs_grad_y, 0, 0, Result);
+  //cv::Canny(image, Result, 100, 200);
+  return mean(Result)[0];
 }
 
 void RailTrack::DoHough(const Mat &dst)
@@ -251,10 +276,10 @@ void RailTrack::getCurves(const Mat &imgCanny)
 
     /// Draw curves
     for( int i = 0; i < left_rail.size(); i++ )
-      for (int j = -1; j < 2; j++)
+      for (int j = -1; j < 15; j++)
         m_imgOriginal.at<Vec3b>(Point(left_rail.at(i).x + j, left_rail.at(i).y)) = Vec3b(0,255,0);
     for( int i = 0; i < right_rail.size(); i++ )
-      for (int j = -1; j < 2; j++)
+      for (int j = -14; j < 2; j++)
         m_imgOriginal.at<Vec3b>(Point(right_rail.at(i).x + j, right_rail.at(i).y)) = Vec3b(0,255,0);
   }
 }
@@ -299,11 +324,13 @@ void RailTrack::track(const sensor_msgs::ImageConstPtr& msg)
   Mat imgCanny;
   Mat imgROI;
   double gray_mean;
+  double sobel_mean;
 
   m_imgOriginal = m_untouched;
   cvtColor(m_imgOriginal, imgGrayscale, CV_BGR2GRAY);       // convert to grayscale
   gray_mean = mean(imgGrayscale)[0];
   GaussianBlur(imgGrayscale, imgGrayscale, Size(9, 9), 0, 0, BORDER_DEFAULT);
+  sobel_mean = doSobel(imgGrayscale);
 
   Canny(imgGrayscale, imgCanny, 80, m_canny);       // Get Canny Edge
   imgROI = setROI(imgCanny);
@@ -311,8 +338,11 @@ void RailTrack::track(const sensor_msgs::ImageConstPtr& msg)
   getCurves(imgCanny);
   getROI();
 
+  myfile << gray_mean << "|" << sobel_mean << "|" << line_number << "|" << m_canny << endl;
+  cout << gray_mean << "\t" << sobel_mean << "\t" << line_number << "\t" << m_canny << endl;
+
   if (line_number != 10)
-    m_canny = gray_mean * 300 / 115;
+    m_canny = sobel_mean * 251 / 12;
 
   //showWindow("imgGrayscale", imgGrayscale);
   showWindow("imgCanny", imgCanny);

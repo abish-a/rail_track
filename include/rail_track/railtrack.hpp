@@ -13,6 +13,7 @@
 #include "image_transport/image_transport.h"
 #include "cv_bridge/cv_bridge.h"
 #include "rail_track/Roi.h"
+#include <fstream>
 
 #define DMAX 260//115//140
 #define DMIN 220//5//30
@@ -31,6 +32,7 @@ public:
   float getSlope(const Vec4f &line);
   float getLength(const Vec4f &line);
   Point getIntersection(const Vec4i &l, const Vec4i &l_2);
+  double doSobel(const Mat &image);
   void DoHough(const Mat &dst);
   void showWindow(const string &title, const Mat &image);
   Mat setROI(const Mat &imgBin);
@@ -52,6 +54,7 @@ private:
   int left_curve;
   int right_curve;
   bool updateTracks = true;
+  ofstream myfile;
 
   ros::NodeHandle n;
   image_transport::ImageTransport it;
