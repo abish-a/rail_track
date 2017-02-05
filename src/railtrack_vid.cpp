@@ -4,6 +4,8 @@ RailTrack_VID::RailTrack_VID(const string &path)
 {
   Mat imgOriginal;
   char esc = 0;
+  char space = 0;
+  char go = 0;
   m_video.open(path);
 
   if (m_video.isOpened() == false)
@@ -41,6 +43,14 @@ RailTrack_VID::RailTrack_VID(const string &path)
     }
     else
       myfile << "No" << endl;
+
+//    space = waitKey(1);
+//    while (space == 32)
+//    {
+//      go = waitKey(1);
+//      if (go == 32)
+//        break;
+//    }
 
     esc = waitKey(1);
   }

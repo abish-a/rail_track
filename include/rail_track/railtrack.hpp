@@ -39,8 +39,10 @@ public:
 
 private:
   Mat m_imgOriginal;
-  int m_canny = 350;
+  int m_canny = 300;
   int line_number;
+  Vec4i m_aPrevLines[2];
+
 
   ros::NodeHandle n;
   ros::Publisher lines_pub;

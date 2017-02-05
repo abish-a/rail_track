@@ -8,6 +8,10 @@ RailTrack::RailTrack() :
     for (int j = 0; j < 4; j++)
       m_aTracks[i][j] = 0;
 
+  for (int i = 0; i < 2; i++)
+    for (int j = 0; j < 4; j++)
+      m_aPrevLines[i][j] = 0;
+
   lines_pub = n.advertise<geometry_msgs::Point>("lines", 1000);
   myfile.open ("lines.txt");
 }
@@ -40,12 +44,11 @@ float RailTrack::getLength(const Vec4f &line)
 
 Mat RailTrack::DoHough(const Mat &dst)
 {
-  //  for (int i = 0; i < 2; i++)
-  //    for (int j = 0; j < 4; j++)
-  //      m_aTracks[i][j] = 0;
+  for (int i = 0; i < 2; i++)
+    for (int j = 0; j < 4; j++)
+      m_aPrevLines[i][j] = 0;
 
   line_number = 0;
-
   vector<Vec4i> lines;
 
   HoughLinesP(dst, lines, 2, CV_PI / 180, 50, 50, 10);
@@ -60,8 +63,13 @@ Mat RailTrack::DoHough(const Mat &dst)
       vector<Vec4i> ext_lines = extend_lines(l, l_2);
       if ((abs(ext_lines[0][2] - ext_lines[1][0]) > DMIN) && (abs(ext_lines[0][2] - ext_lines[1][0]) < DMAX))
       {
-        m_aTracks[0] = ext_lines[0]; // right track
-        m_aTracks[1] = ext_lines[1]; //left track
+        if (getLength(l) >= getLength(m_aPrevLines[0]) && getLength(l_2) >= getLength(m_aPrevLines[1]))
+        {
+          m_aTracks[0] = ext_lines[0]; // right track
+          m_aTracks[1] = ext_lines[1]; //left track
+          m_aPrevLines[0] = l;
+          m_aPrevLines[1] = l_2;
+        }
       }
     }
   }
@@ -110,7 +118,7 @@ void RailTrack::getContours(const Mat &imgCanny)
   float Yint1 = getYintersect(m_aTracks[1]);
 
   /// Find contours
-  findContours( imgCanny, contours, hierarchy, CV_RETR_TREE, CV_CHAIN_APPROX_SIMPLE, Point(0, 0) );
+  findContours( imgCanny, contours, hierarchy, CV_RETR_TREE, CV_CHAIN_APPROX_NONE, Point(0, 0) );
 
   for( int i = 0; i< contours.size(); i++ )
   {
@@ -227,15 +235,14 @@ void RailTrack::track(Mat &imgOriginal)
 
   GaussianBlur(imgGrayscale, imgGrayscale, Size(9, 9), 0, 0, BORDER_DEFAULT);
 
-  if (line_number > 12)
-    m_canny += 10;
-  else if (line_number < 8)
-    m_canny -= 10;
+  if (line_number != 10)
+    m_canny = mean * 300 / 110;
 
-  Canny(imgGrayscale, imgCanny, 0.3*m_canny, m_canny);       // Get Canny Edge 80, 300
-
+  Canny(imgGrayscale, imgCanny, 80, m_canny);       // Get Canny Edge
   imgROI = region_of_interest(imgCanny);
   imgHough = DoHough(imgROI);
+
+  myfile << mean << "|" << line_number << "|" << m_canny << "|";
 
   getContours(imgCanny);
 
@@ -243,6 +250,8 @@ void RailTrack::track(Mat &imgOriginal)
   showWindow("imgCanny", imgCanny);
   //showWindow("imgROI", imgROI);
   showWindow("imgHough", imgHough);
+
+  //cout << roi_mean << "\t" << m_canny << "\t" << line_number << endl;
 
   msg_tracks.x = 500;
   msg_tracks.y = 50;
