@@ -1,3 +1,10 @@
+/*!
+ * \file	rail_track
+ * \author	Abish Asphandiar <abish@uni-bremen.de> 3020632
+ * \date	19-October-2016
+ * \brief Publishing video
+ */
+
 #include "rail_track/railtrack_vid.hpp"
 
 RailTrack_VID::RailTrack_VID(const string &path):

@@ -1,3 +1,10 @@
+/*!
+ * \file	rail_track
+ * \author	Abish Asphandiar <abish@uni-bremen.de> 3020632
+ * \date	19-October-2016
+ * \brief Subscribe to frame topic and process to track the curves
+ */
+
 #include "rail_track/railtrack.hpp"
 
 
@@ -20,13 +27,13 @@ RailTrack::RailTrack() :
   prev_track_0 = m_aTracks[0][2];
   prev_track_1 = m_aTracks[1][0];
 
+  /// initializing publisher and subscriber
   roi_pub = n.advertise<rail_track::Roi>("/rail_track/roi", 1);
   frame_sub = n.subscribe("/rail_track/frame", 1, &RailTrack::track, this);
-  myfile.open ("lines.txt");
 
   while (ros::ok())
   {
-    roi_pub.publish(msg_roi);
+    roi_pub.publish(msg_roi); //publishing ROI regularly
     ros::spinOnce();
     loop_rate.sleep();
   }
@@ -34,10 +41,10 @@ RailTrack::RailTrack() :
 
 RailTrack::~RailTrack()
 {
-  myfile.close();
+
 }
 
-float RailTrack::getYintersect(const Vec4f &line)
+float RailTrack::getYintersect(const Vec4f &line) //method to get the y-intercept from two points of line
 {
   if (line[2] == line[0])
     return numeric_limits<float>::max();
@@ -45,7 +52,7 @@ float RailTrack::getYintersect(const Vec4f &line)
     return static_cast<float>(((line[2] * line[1]) - (line[0] * line[3])) / (line[2] - line[0]));
 }
 
-float RailTrack::getSlope(const Vec4f &line)
+float RailTrack::getSlope(const Vec4f &line)  //method to get the slope from two points of line
 {
   if (line[2] == line[0])
     return numeric_limits<float>::max();
@@ -53,12 +60,12 @@ float RailTrack::getSlope(const Vec4f &line)
     return ((line[3] - line[1]) / (line[2] - line[0]));
 }
 
-float RailTrack::getLength(const Vec4f &line)
+float RailTrack::getLength(const Vec4f &line) //method to get the length of the line
 {
   return sqrt(((line[3] - line[1]) * (line[3] - line[1])) + ((line[2] - line[0]) * (line[2] - line[0])));
 }
 
-Point RailTrack::getIntersection(const Vec4i &l, const Vec4i &l_2)
+Point RailTrack::getIntersection(const Vec4i &l, const Vec4i &l_2) //method to get intersection point between two lines
 {
   Point intersection;
   float fSlope0 = getSlope(l);
@@ -91,8 +98,9 @@ void RailTrack::DoHough(const Mat &dst)
     for (size_t j = 0; j < lines.size(); j++)
     {
       Vec4i l_2 = lines.at(j);
-      vector<Vec4i> ext_lines = extendLines(l, l_2);
+      vector<Vec4i> ext_lines = extendLines(l, l_2); // entending lines
 
+      /// compare if two lines fulfil the criteria
       if ((abs(ext_lines[0][2] - ext_lines[1][0]) > DMIN) && (abs(ext_lines[0][2] - ext_lines[1][0]) < DMAX))
       {
         if (getLength(l) >= getLength(m_aPrevLines[0]) && getLength(l_2) >= getLength(m_aPrevLines[1]))
@@ -120,7 +128,7 @@ void RailTrack::showWindow(const string &title, const Mat &image)
   cv::imshow(title, image);                   // show windows
 }
 
-Mat RailTrack::setROI(const Mat &imgBin)
+Mat RailTrack::setROI(const Mat &imgBin) // making ROI polygon and intersecting with canny
 {
   Mat imgPoly(imgBin.size(), imgBin.type());
   Mat Result;
@@ -136,6 +144,8 @@ Mat RailTrack::setROI(const Mat &imgBin)
 
 vector<Vec4i> RailTrack::extendLines(const Vec4i &l, const Vec4i &l_2)
 {
+  /// extending the lines but before doing, first check for the height criteria.
+  /// if the condition fails then it makes extended lines 0 to fail the m_aTracks from updating
   vector<Vec4i> final_lines;
   Vec4i extended_lines;
   Point intersection = getIntersection(l, l_2);
@@ -199,9 +209,9 @@ void RailTrack::getCurves(const Mat &imgCanny)
   left_curve = imgCanny.cols;
   right_curve = 0;
 
-  if (iWmax > 0)
+  if (iWmax > 0) //just a security measure
   {
-    if (m_aPrevLines[1][1] == 0)
+    if (m_aPrevLines[1][1] == 0) //push in the previous tracks if the tracks are not identified in this frame
       left_rail.push_back(Point(m_aTracks[1][0], m_aTracks[1][1]));
     else
       left_rail.push_back(Point(m_aPrevLines[1][0], m_aPrevLines[1][1]));
@@ -213,7 +223,7 @@ void RailTrack::getCurves(const Mat &imgCanny)
 
     for (int i = m_aPrevLines[1][1]; i > (intersection.y + 20); i--) //from bottom of the image to the top
     {
-      cost_function = 200;
+      cost_function = 200; // to find left track
       for (int j = -1; j < 2; j++)
       {
         int current_cost = imgCanny.at<uchar>(Point((left_rail.at(left_rail.size() - 1).x + j), i));
@@ -232,7 +242,7 @@ void RailTrack::getCurves(const Mat &imgCanny)
 
     for (int i = m_aPrevLines[0][3]; i > (intersection.y + 20); i--) //from bottom of the image to the top
     {
-      cost_function = 200;
+      cost_function = 200; // to find right track
       for (int j = -1; j < 2; j++)
       {
         int current_cost = imgCanny.at<uchar>(Point((right_rail.at(right_rail.size() - 1).x + j), i));
@@ -277,7 +287,7 @@ void RailTrack::getCurves(const Mat &imgCanny)
   }
 }
 
-void RailTrack::getROI()
+void RailTrack::getROI() //updating ROI from the tracks found
 {
   if (m_aTracks[1][0] != -1 && m_aTracks[1][0] != 0)
   {
@@ -286,6 +296,8 @@ void RailTrack::getROI()
       /** Create some points */
       poly_points[0][0]  = Point((m_aTracks[1][0] - ROI_X), m_aTracks[1][1]);
 
+      /// if tracks are leaning right, the upper right point will be the curve point but the upper left point will be the intersection point
+      /// this is to make sure the ROI dont fail
       if(left_curve < m_aTracks[1][2])
         poly_points[0][1]  = Point((left_curve - ROI_Y), (m_aTracks[1][3] - ROI_Y));
       else
@@ -323,7 +335,7 @@ void RailTrack::track(const rail_track::FrameConstPtr &msg)
 
   gray_mean = mean(imgGrayscale)[0];
   if (gray_mean > 120)
-    m_canny = 100;
+    m_canny = 100; //for rails covered in snow
   else
     m_canny =  0.003594*gray_mean*gray_mean*gray_mean - 0.8398*gray_mean*gray_mean + 64.05*gray_mean - 1460;
   if (m_canny > 250)
@@ -338,13 +350,12 @@ void RailTrack::track(const rail_track::FrameConstPtr &msg)
   getCurves(imgCanny);
   getROI();
 
-  myfile << gray_mean << "|" << 30 << "|" << m_canny << endl;
-
   //showWindow("imgGrayscale", imgGrayscale);
   showWindow("imgCanny", imgCanny);
   //showWindow("imgROI", imgROI);
   showWindow("Tracked", m_imgResult);
 
+  /// Making message to publish
   msg_roi.timestamp = msg->timestamp;
   msg_roi.roi_0.x = poly_points[0][0].x;
   msg_roi.roi_0.y = poly_points[0][0].y;

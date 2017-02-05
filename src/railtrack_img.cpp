@@ -1,3 +1,10 @@
+/*!
+ * \file	rail_track
+ * \author	Abish Asphandiar <abish@uni-bremen.de> 3020632
+ * \date	19-October-2016
+ * \brief Publishing the image
+ */
+
 #include "rail_track/railtrack_img.hpp"
 
 RailTrack_IMG::RailTrack_IMG(const string &path):

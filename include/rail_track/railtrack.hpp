@@ -14,8 +14,6 @@
 #include "cv_bridge/cv_bridge.h"
 #include "rail_track/Roi.h"
 #include "rail_track/Frame.h"
-#include <ctime>
-#include <fstream>
 
 #define DMAX 260//115//140
 #define DMIN 220//5//30
@@ -55,7 +53,6 @@ private:
   int left_curve;
   int right_curve;
   bool updateTracks = true;
-  ofstream myfile;
 
   ros::NodeHandle n;
   ros::Subscriber frame_sub;
