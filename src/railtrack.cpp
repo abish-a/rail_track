@@ -2,7 +2,7 @@
 
 
 RailTrack::RailTrack() :
-  loop_rate(10)
+  loop_rate(30)
 {
   for (int i = 0; i < 2; i++)
     for (int j = 0; j < 4; j++)
@@ -12,7 +12,7 @@ RailTrack::RailTrack() :
     for (int j = 0; j < 4; j++)
       m_aPrevLines[i][j] = 0;
 
-  lines_pub = n.advertise<geometry_msgs::Point>("lines", 1000);
+  roi_pub = n.advertise<rail_track::Roi>("/rail_track/roi", 1000);
   myfile.open ("lines.txt");
 }
 
@@ -253,10 +253,23 @@ void RailTrack::track(Mat &imgOriginal)
 
   //cout << roi_mean << "\t" << m_canny << "\t" << line_number << endl;
 
-  msg_tracks.x = 500;
-  msg_tracks.y = 50;
-  msg_tracks.z = 5;
-  lines_pub.publish(msg_tracks);
+  sensor_msgs::ImagePtr im_msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", m_imgOriginal).toImageMsg();
+
+  msg_roi.roi_0.x = poly_points[0][0].x;
+  msg_roi.roi_0.y = poly_points[0][0].y;
+  msg_roi.roi_0.z = 1;
+  msg_roi.roi_1.x = poly_points[0][1].x;
+  msg_roi.roi_1.y = poly_points[0][1].y;
+  msg_roi.roi_1.z = 1;
+  msg_roi.roi_2.x = poly_points[0][2].x;
+  msg_roi.roi_2.y = poly_points[0][2].y;
+  msg_roi.roi_2.z = 1;
+  msg_roi.roi_3.x = poly_points[0][3].x;
+  msg_roi.roi_3.y = poly_points[0][3].y;
+  msg_roi.roi_3.z = 1;
+  msg_roi.roi_image = *im_msg;
+
+  roi_pub.publish(msg_roi);
   ros::spinOnce();
   loop_rate.sleep();
 }

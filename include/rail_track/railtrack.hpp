@@ -11,6 +11,11 @@
 #include "ros/ros.h"
 #include "std_msgs/Float32.h"
 #include "geometry_msgs/Point.h"
+#include "image_transport/image_transport.h"
+#include "cv_bridge/cv_bridge.h"
+#include "sensor_msgs/Image.h"
+#include "rail_track/Roi.h"
+
 #include <time.h>
 #include <fstream>
 
@@ -43,12 +48,10 @@ private:
   int line_number;
   Vec4i m_aPrevLines[2];
 
-
   ros::NodeHandle n;
-  ros::Publisher lines_pub;
+  ros::Publisher roi_pub;
   ros::Rate loop_rate;
-  geometry_msgs::Point msg_tracks;
-
+  rail_track::Roi msg_roi;
 
 protected:
   Vec4i m_aTracks[2];
