@@ -2,7 +2,8 @@
 
 
 RailTrack::RailTrack() :
-  loop_rate(30)
+  loop_rate(30),
+  it(n)
 {
   for (int i = 0; i < 2; i++)
     for (int j = 0; j < 4; j++)
@@ -11,13 +12,19 @@ RailTrack::RailTrack() :
       m_aTracks[i][j] = 0;
     }
 
+  poly_points[0][0]  = Point(0, 720);
+  poly_points[0][1]  = Point(427, 360);
+  poly_points[0][2]  = Point(853, 360);
+  poly_points[0][3]  = Point(1280, 720);
+
   roi_pub = n.advertise<rail_track::Roi>("/rail_track/roi", 1000);
-  myfile.open ("lines.txt");
+  frame_sub = it.subscribe("/rail_track/frame", 1, &RailTrack::track, this);
+  ros::spin();
 }
 
 RailTrack::~RailTrack()
 {
-  myfile.close();
+
 }
 
 float RailTrack::getYintersect(const Vec4f &line)
@@ -62,7 +69,7 @@ void RailTrack::DoHough(const Mat &dst)
     for (size_t j = 0; j < lines.size(); j++)
     {
       Vec4i l_2 = lines.at(j);
-      vector<Vec4i> ext_lines = extendLines(l, l_2);
+      vector<Vec4i> ext_lines = extend_lines(l, l_2);
 
       if ((abs(ext_lines[0][2] - ext_lines[1][0]) > DMIN) && (abs(ext_lines[0][2] - ext_lines[1][0]) < DMAX))
       {
@@ -92,7 +99,7 @@ void RailTrack::showWindow(const string &title, const Mat &image)
   cv::imshow(title, image);                   // show windows
 }
 
-Mat RailTrack::setROI(const Mat &imgBin)
+Mat RailTrack::region_of_interest(const Mat &imgBin)
 {
   Mat imgPoly(imgBin.size(), imgBin.type());
   Mat Result;
@@ -106,7 +113,7 @@ Mat RailTrack::setROI(const Mat &imgBin)
   return Result;
 }
 
-vector<Vec4i> RailTrack::extendLines(const Vec4i &l, const Vec4i &l_2)
+vector<Vec4i> RailTrack::extend_lines(const Vec4i &l, const Vec4i &l_2)
 {
   vector<Vec4i> final_lines;
   Vec4i extended_lines;
@@ -223,13 +230,25 @@ void RailTrack::getCurves(const Mat &imgCanny)
   }
 }
 
-void RailTrack::getROI()
+void RailTrack::setROI()
 {
-
+  if (m_aTracks[1][0] != -1 && m_aTracks[1][0] != 0)
+    if((abs(prev_track_0 - m_aTracks[0][2]) < 5) && (abs(prev_track_1 - m_aTracks[1][0]) < 5))
+    {
+      /** Create some points */
+      poly_points[0][0]  = Point((m_aTracks[1][0] - ROI_X), m_aTracks[1][1]);
+      poly_points[0][1]  = Point((m_aTracks[1][2] - ROI_Y), (m_aTracks[1][3] - ROI_Y));
+      poly_points[0][2]  = Point((m_aTracks[0][0] + ROI_Y), (m_aTracks[0][1] - ROI_Y));
+      poly_points[0][3]  = Point((m_aTracks[0][2] + ROI_X), m_aTracks[0][3]);
+    }
+  prev_track_0 = m_aTracks[0][2];
+  prev_track_1 = m_aTracks[1][0];
 }
 
-void RailTrack::track(const Mat &imgOriginal)
+void RailTrack::track(const sensor_msgs::ImageConstPtr& msg)
 {
+  Mat imgOriginal = cv_bridge::toCvShare(msg, "bgr8")->image;
+
   Mat imgGrayscale;       // grayscale of input image
   Mat imgCanny;
   Mat imgROI;
@@ -244,14 +263,13 @@ void RailTrack::track(const Mat &imgOriginal)
   GaussianBlur(imgGrayscale, imgGrayscale, Size(9, 9), 0, 0, BORDER_DEFAULT);
 
   Canny(imgGrayscale, imgCanny, 80, m_canny);       // Get Canny Edge
-  imgROI = setROI(imgCanny);
+  imgROI = region_of_interest(imgCanny);
   DoHough(imgROI);
   getCurves(imgCanny);
+  setROI();
 
   if (line_number != 10)
     m_canny = gray_mean * 300 / 115;
-
-  myfile << gray_mean << "|" << line_number << "|" << m_canny << "|";
 
   //showWindow("imgGrayscale", imgGrayscale);
   showWindow("imgCanny", imgCanny);
@@ -277,6 +295,6 @@ void RailTrack::track(const Mat &imgOriginal)
   msg_roi.roi_3.z = 1;
   msg_roi.roi_image = *im_msg;
   roi_pub.publish(msg_roi);
-  ros::spinOnce();
-  loop_rate.sleep();
+  //loop_rate.sleep();
+  cv::waitKey(30);
 }

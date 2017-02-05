@@ -125,8 +125,11 @@ include_directories(
 )
 
 ## Declare a C++ library
-add_library(lib_rail_track
+add_library(lib_rail_track_listener
   src/railtrack.cpp
+)
+
+add_library(lib_rail_track_talker
   src/railtrack_img.cpp
   src/railtrack_vid.cpp
 )
@@ -134,17 +137,22 @@ add_library(lib_rail_track
 ## Add cmake target dependencies of the library
 ## as an example, code may need to be generated before libraries
 ## either from message generation or dynamic reconfigure
-add_dependencies(lib_rail_track ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+add_dependencies(lib_rail_track_listener ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+add_dependencies(lib_rail_track_talker ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+
 
 ## Declare a C++ executable
-add_executable(rail_track src/main.cpp)
+add_executable(rail_track src/listener.cpp)
+add_executable(pub_frame src/talker.cpp)
 
 ## Add cmake target dependencies of the executable
 ## same as for the library above
 add_dependencies(rail_track ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+add_dependencies(pub_frame ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 ## Specify libraries to link a library or executable target against
-target_link_libraries(rail_track lib_rail_track ${catkin_LIBRARIES})
+target_link_libraries(rail_track lib_rail_track_listener ${catkin_LIBRARIES})
+target_link_libraries(pub_frame lib_rail_track_talker ${catkin_LIBRARIES})
 
 #############
 ## Install ##

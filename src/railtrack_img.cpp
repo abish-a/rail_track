@@ -1,29 +1,23 @@
 #include "rail_track/railtrack_img.hpp"
 
-RailTrack_IMG::RailTrack_IMG(const string &path)
+RailTrack_IMG::RailTrack_IMG(const string &path) :
+  loop_rate(30),
+  it(n)
 {
-  Mat imgOriginal = cv::imread(path);          // open image
-  if (imgOriginal.empty())						// if unable to open image
+  img_pub = it.advertise("/rail_track/frame", 1);
+
+  Mat frame = cv::imread(path);          // open image
+  if (!frame.empty())
+  {
+    msg_img = cv_bridge::CvImage(std_msgs::Header(), "bgr8", frame).toImageMsg();
+    img_pub.publish(msg_img);
+  }
+  else
     cout << "Cannot open image" << endl;
+  loop_rate.sleep();
+}
 
-  /** Create some points */
-  poly_points[0][0]  = Point(0, imgOriginal.rows);
-  poly_points[0][1]  = Point(imgOriginal.cols/3, imgOriginal.rows/2);
-  poly_points[0][2]  = Point(imgOriginal.cols*2/3, imgOriginal.rows/2);
-  poly_points[0][3]  = Point(imgOriginal.cols, imgOriginal.rows);
+RailTrack_IMG::~RailTrack_IMG()
+{
 
-  track(imgOriginal);
-
-  waitKey(0);
-
-  /** Create some points */
-  poly_points[0][0]  = Point((m_aTracks[1][0] - ROI_X), m_aTracks[1][1]);
-  poly_points[0][1]  = Point((m_aTracks[1][2] - ROI_Y), (m_aTracks[1][3] - ROI_Y));
-  poly_points[0][2]  = Point((m_aTracks[0][0] + ROI_Y), (m_aTracks[0][1] - ROI_Y));
-  poly_points[0][3]  = Point((m_aTracks[0][2] + ROI_X), m_aTracks[0][3]);
-
-  imgOriginal = cv::imread(path);
-  track(imgOriginal);
-
-  waitKey(0);
 }
