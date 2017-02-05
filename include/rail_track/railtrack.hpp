@@ -8,16 +8,11 @@
 #include <cmath>
 #include <limits>
 #include <string>
-#include "ros/ros.h"
-#include "std_msgs/Float32.h"
-#include "geometry_msgs/Point.h"
-#include "image_transport/image_transport.h"
-#include "cv_bridge/cv_bridge.h"
-#include "sensor_msgs/Image.h"
-#include "rail_track/Roi.h"
-
-#include <time.h>
 #include <fstream>
+#include "ros/ros.h"
+#include "geometry_msgs/Point.h"
+#include "cv_bridge/cv_bridge.h"
+#include "rail_track/Roi.h"
 
 #define DMAX 260//115//140
 #define DMIN 220//5//30
@@ -35,12 +30,13 @@ public:
   float getYintersect(const Vec4f &line);
   float getSlope(const Vec4f &line);
   float getLength(const Vec4f &line);
-  Mat DoHough(const Mat &dst);
+  void DoHough(const Mat &dst);
   void showWindow(const string &title, const Mat &image);
   Mat region_of_interest(const Mat &imgBin);
-  void getContours(const Mat &imgCanny);
-  vector<Vec4i> extend_lines(Vec4i l, Vec4i l_2);
-  void track(Mat &imgOriginal);
+  void getContours(const Mat &imgCanny); //might not need it
+  vector<Vec4i> extend_lines(const Vec4i &l, const Vec4i &l_2);
+  void goDynamic(const Mat &imgCanny);
+  void track(const Mat &imgOriginal);
 
 private:
   Mat m_imgOriginal;

@@ -42,7 +42,7 @@ float RailTrack::getLength(const Vec4f &line)
   return sqrt(((line[3] - line[1]) * (line[3] - line[1])) + ((line[2] - line[0]) * (line[2] - line[0])));
 }
 
-Mat RailTrack::DoHough(const Mat &dst)
+void RailTrack::DoHough(const Mat &dst)
 {
   for (int i = 0; i < 2; i++)
     for (int j = 0; j < 4; j++)
@@ -77,12 +77,10 @@ Mat RailTrack::DoHough(const Mat &dst)
   /// Draw Lines
   line(m_imgOriginal, Point(m_aTracks[0][0], m_aTracks[0][1]), Point(m_aTracks[0][2], m_aTracks[0][3]), Scalar(0, 0, 255), 2, CV_AA);
   line(m_imgOriginal, Point(m_aTracks[1][0], m_aTracks[1][1]), Point(m_aTracks[1][2], m_aTracks[1][3]), Scalar(0, 0, 255), 2, CV_AA);
-
+  /// Draw ROI
   line(m_imgOriginal, poly_points[0][0], poly_points[0][1], Scalar(255, 0, 0), 2, CV_AA);
   line(m_imgOriginal, poly_points[0][1], poly_points[0][2], Scalar(255, 0, 0), 2, CV_AA);
   line(m_imgOriginal, poly_points[0][2], poly_points[0][3], Scalar(255, 0, 0), 2, CV_AA);
-
-  return m_imgOriginal;
 }
 
 void RailTrack::showWindow(const string &title, const Mat &image)
@@ -94,15 +92,13 @@ void RailTrack::showWindow(const string &title, const Mat &image)
 Mat RailTrack::region_of_interest(const Mat &imgBin)
 {
   Mat imgPoly(imgBin.size(), imgBin.type());
-  imgPoly.setTo(0);
   Mat Result;
-
   int lineType = LINE_8;
-  const Point* ppt[1] = { poly_points[0] };
-  int npt[] = { 4 };
+  const Point* ppt[1] = {poly_points[0]};
+  int npt[] = {4};
 
-  fillPoly(imgPoly, ppt,npt,1, Scalar( 255, 255, 255 ), lineType);
-
+  imgPoly.setTo(0);
+  fillPoly(imgPoly, ppt,npt,1, Scalar(255, 255, 255), lineType);
   bitwise_and(imgPoly, imgBin, Result);
   return Result;
 }
@@ -126,29 +122,16 @@ void RailTrack::getContours(const Mat &imgCanny)
     {
       for (int j = 0; j < contours.at(i).size(); j++) // anypoint lies on the line
       {
-        if (contours.at(i).at(j).y == ((contours.at(i).at(j).x * slope0) + Yint0))
+        if (abs(contours.at(i).at(j).y - ((contours.at(i).at(j).x * slope0) + Yint0)) < 5)
         {
           rail_contour.push_back(contours.at(i));
           break;
         }
-        else if (contours.at(i).at(j).y == ((contours.at(i).at(j).x * slope1) + Yint1))
+        else if (abs(contours.at(i).at(j).y - ((contours.at(i).at(j).x * slope1) + Yint1)) < 5)
         {
           rail_contour.push_back(contours.at(i));
           break;
         }
-
-        /*
-        if ((contours.at(i).at(j).x == m_aTracks[0][0]) && (contours.at(i).at(j).y == m_aTracks[0][1]))
-        {
-          rail_contour.push_back(contours.at(i));
-          break;
-        }
-        else if ((contours.at(i).at(j).x == m_aTracks[1][2]) && (contours.at(i).at(j).y == m_aTracks[1][3]))
-        {
-          rail_contour.push_back(contours.at(i));
-          break;
-        }
-        */
       }
     }
   }
@@ -164,7 +147,7 @@ void RailTrack::getContours(const Mat &imgCanny)
   hierarchy.clear();
 }
 
-vector<Vec4i> RailTrack::extend_lines(Vec4i l, Vec4i l_2)
+vector<Vec4i> RailTrack::extend_lines(const Vec4i &l, const Vec4i &l_2)
 {
   vector<Vec4i> final_lines;
   Vec4i extended_lines;
@@ -211,7 +194,7 @@ vector<Vec4i> RailTrack::extend_lines(Vec4i l, Vec4i l_2)
   }
   else
   {
-    for (int i = 0; i < 4;i++)
+    for (int i = 0; i < 4;i++) //sending zero
       extended_lines[i] = 0;
     final_lines.push_back(extended_lines);
     final_lines.push_back(extended_lines);
@@ -219,42 +202,40 @@ vector<Vec4i> RailTrack::extend_lines(Vec4i l, Vec4i l_2)
   return final_lines;
 }
 
-void RailTrack::track(Mat &imgOriginal)
+void RailTrack::goDynamic(const Mat &imgCanny)
+{
+  int iWmax = m_aTracks[0][2] - m_aTracks[1][2];
+  if (iWmax < 0)
+    cout << iWmax << endl;
+}
+
+void RailTrack::track(const Mat &imgOriginal)
 {
   Mat imgGrayscale;       // grayscale of input image
   Mat imgCanny;
   Mat imgROI;
-  Mat imgHough;
 
   m_imgOriginal = imgOriginal;
-
-  //m_imgOriginal = DoCrop(m_imgOriginal);		// Cropping the image as we dont need the upper part
   cvtColor(m_imgOriginal, imgGrayscale, CV_BGR2GRAY);       // convert to grayscale
-
-  double mean = cv::mean(imgGrayscale)[0];
-
+  double gray_mean = mean(imgGrayscale)[0];
   GaussianBlur(imgGrayscale, imgGrayscale, Size(9, 9), 0, 0, BORDER_DEFAULT);
 
   if (line_number != 10)
-    m_canny = mean * 300 / 110;
+    m_canny = gray_mean * 300 / 110;
 
   Canny(imgGrayscale, imgCanny, 80, m_canny);       // Get Canny Edge
   imgROI = region_of_interest(imgCanny);
-  imgHough = DoHough(imgROI);
-
-  myfile << mean << "|" << line_number << "|" << m_canny << "|";
-
+  DoHough(imgROI);
   getContours(imgCanny);
+
+  myfile << gray_mean << "|" << line_number << "|" << m_canny << "|";
 
   //showWindow("imgGrayscale", imgGrayscale);
   showWindow("imgCanny", imgCanny);
   //showWindow("imgROI", imgROI);
-  showWindow("imgHough", imgHough);
-
-  //cout << roi_mean << "\t" << m_canny << "\t" << line_number << endl;
+  showWindow("Tracked", m_imgOriginal);
 
   sensor_msgs::ImagePtr im_msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", m_imgOriginal).toImageMsg();
-
   msg_roi.roi_0.x = poly_points[0][0].x;
   msg_roi.roi_0.y = poly_points[0][0].y;
   msg_roi.roi_0.z = 1;
@@ -268,7 +249,6 @@ void RailTrack::track(Mat &imgOriginal)
   msg_roi.roi_3.y = poly_points[0][3].y;
   msg_roi.roi_3.z = 1;
   msg_roi.roi_image = *im_msg;
-
   roi_pub.publish(msg_roi);
   ros::spinOnce();
   loop_rate.sleep();
