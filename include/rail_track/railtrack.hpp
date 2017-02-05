@@ -33,7 +33,6 @@ public:
   void DoHough(const Mat &dst);
   void showWindow(const string &title, const Mat &image);
   Mat region_of_interest(const Mat &imgBin);
-  void getContours(const Mat &imgCanny); //might not need it
   vector<Vec4i> extend_lines(const Vec4i &l, const Vec4i &l_2);
   void goDynamic(const Mat &imgCanny);
   void track(const Mat &imgOriginal);
