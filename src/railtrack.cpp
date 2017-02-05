@@ -70,29 +70,6 @@ Point RailTrack::getIntersection(const Vec4i &l, const Vec4i &l_2)
   return intersection;
 }
 
-double RailTrack::doSobel(const Mat &image)
-{
-  Mat Result;
-  int scale = 1;
-  int delta = 0;
-  int ddepth = CV_16S;
-  /// Generate grad_x and grad_y
-  Mat grad_x, grad_y;
-  Mat abs_grad_x, abs_grad_y;
-
-  /// Gradient X
-  Sobel(image, grad_x, ddepth, 1, 0, 3, scale, delta, BORDER_DEFAULT);
-  convertScaleAbs(grad_x, abs_grad_x);
-
-  /// Gradient Y
-  Sobel(image, grad_y, ddepth, 0, 1, 3, scale, delta, BORDER_DEFAULT);
-  convertScaleAbs(grad_y, abs_grad_y);
-
-  /// Total Gradient (approximate)
-  addWeighted(abs_grad_x, 0.5, abs_grad_y, 0.5, 0, Result);
-  return mean(Result)[0];
-}
-
 void RailTrack::DoHough(const Mat &dst)
 {
   for (int i = 0; i < 2; i++)
@@ -234,7 +211,7 @@ void RailTrack::getCurves(const Mat &imgCanny)
     else
       right_rail.push_back(Point(m_aPrevLines[0][2], m_aPrevLines[0][3]));
 
-    for (int i = m_aPrevLines[1][1]; i > intersection.y; i--) //from bottom of the image to the top
+    for (int i = m_aPrevLines[1][1]; i > (intersection.y + 20); i--) //from bottom of the image to the top
     {
       cost_function = 200;
       for (int j = -1; j < 2; j++)
@@ -253,7 +230,7 @@ void RailTrack::getCurves(const Mat &imgCanny)
       }
     }
 
-    for (int i = m_aPrevLines[0][3]; i > intersection.y; i--) //from bottom of the image to the top
+    for (int i = m_aPrevLines[0][3]; i > (intersection.y + 20); i--) //from bottom of the image to the top
     {
       cost_function = 200;
       for (int j = -1; j < 2; j++)
@@ -286,6 +263,17 @@ void RailTrack::getCurves(const Mat &imgCanny)
     for( int i = 0; i < right_rail.size(); i++ )
       for (int j = -14; j < 2; j++)
         m_imgResult.at<Vec3b>(Point(right_rail.at(i).x + j, right_rail.at(i).y)) = Vec3b(0,255,0);
+
+    /// Continue to Draw lines until the end
+    int cont_row;
+    if (left_rail.at(0).y < right_rail.at(0).y)
+      cont_row = left_rail.at(0).y;
+    else
+      cont_row = right_rail.at(0).y;
+
+    for (int y = cont_row; y < (m_imgResult.rows-1); y++)
+      for (int x = ((y - getYintersect(m_aTracks[1]))/getSlope(m_aTracks[1])); x < ((y - getYintersect(m_aTracks[0]))/getSlope(m_aTracks[0])); x++)
+        m_imgResult.at<Vec3b>(Point(x, y)) += Vec3b(0,150,0);
   }
 }
 
@@ -328,33 +316,36 @@ void RailTrack::track(const rail_track::FrameConstPtr &msg)
   Mat imgGrayscale;       // grayscale of input image
   Mat imgCanny;
   Mat imgROI;
-  double sobel_mean;
+  double gray_mean;
 
   m_imgResult = m_imgOriginal;
   cvtColor(m_imgResult, imgGrayscale, CV_BGR2GRAY);       // convert to grayscale
-  GaussianBlur(imgGrayscale, imgGrayscale, Size(9, 9), 0, 0, BORDER_DEFAULT);
-  sobel_mean = doSobel(imgGrayscale);
 
-  Canny(imgGrayscale, imgCanny, 80, m_canny);       // Get Canny Edge
+  gray_mean = mean(imgGrayscale)[0];
+  if (gray_mean > 120)
+    m_canny = 100;
+  else
+    m_canny =  0.003594*gray_mean*gray_mean*gray_mean - 0.8398*gray_mean*gray_mean + 64.05*gray_mean - 1460;
+  if (m_canny > 250)
+    m_canny = 250;
+  if (m_canny < 100)
+    m_canny = 100;
+
+  GaussianBlur(imgGrayscale, imgGrayscale, Size(9, 9), 0, 0, BORDER_DEFAULT);
+  Canny(imgGrayscale, imgCanny, 30, m_canny);       // Get Canny Edge
   imgROI = setROI(imgCanny);
   DoHough(imgROI);
   getCurves(imgCanny);
   getROI();
 
-  //myfile << sobel_mean << "|" << line_number << "|" << m_canny << endl;
-  //cout << sobel_mean << "\t" << line_number << "\t" << m_canny << endl;
-
-  if (line_number != 10)
-    m_canny = (sobel_mean - 1.3) * 251 / 12;
+  myfile << gray_mean << "|" << 30 << "|" << m_canny << endl;
 
   //showWindow("imgGrayscale", imgGrayscale);
   showWindow("imgCanny", imgCanny);
   //showWindow("imgROI", imgROI);
   showWindow("Tracked", m_imgResult);
 
-  sensor_msgs::ImagePtr im_msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", m_imgOriginal).toImageMsg();
-  msg_roi.frame.orig_image = *im_msg;
-  msg_roi.frame.timestamp = msg->timestamp;
+  msg_roi.timestamp = msg->timestamp;
   msg_roi.roi_0.x = poly_points[0][0].x;
   msg_roi.roi_0.y = poly_points[0][0].y;
   msg_roi.roi_0.z = 1;

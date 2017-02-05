@@ -34,7 +34,6 @@ public:
   float getSlope(const Vec4f &line);
   float getLength(const Vec4f &line);
   Point getIntersection(const Vec4i &l, const Vec4i &l_2);
-  double doSobel(const Mat &image);
   void DoHough(const Mat &dst);
   void showWindow(const string &title, const Mat &image);
   Mat setROI(const Mat &imgBin);
