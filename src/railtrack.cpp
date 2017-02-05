@@ -2,8 +2,7 @@
 
 
 RailTrack::RailTrack() :
-  loop_rate(30),
-  it(n)
+  loop_rate(30)
 {
   for (int i = 0; i < 2; i++)
     for (int j = 0; j < 4; j++)
@@ -22,7 +21,7 @@ RailTrack::RailTrack() :
   prev_track_1 = m_aTracks[1][0];
 
   roi_pub = n.advertise<rail_track::Roi>("/rail_track/roi", 1);
-  frame_sub = it.subscribe("/rail_track/frame", 1, &RailTrack::track, this);
+  frame_sub = n.subscribe("/rail_track/frame", 1, &RailTrack::track, this);
   myfile.open ("lines.txt");
 
   while (ros::ok())
@@ -90,8 +89,7 @@ double RailTrack::doSobel(const Mat &image)
   convertScaleAbs(grad_y, abs_grad_y);
 
   /// Total Gradient (approximate)
-  addWeighted(abs_grad_x, 1, abs_grad_y, 0, 0, Result);
-  //cv::Canny(image, Result, 100, 200);
+  addWeighted(abs_grad_x, 0.5, abs_grad_y, 0.5, 0, Result);
   return mean(Result)[0];
 }
 
@@ -132,11 +130,11 @@ void RailTrack::DoHough(const Mat &dst)
   }
 
   /// Draw Lines
-  line(m_imgOriginal, Point(m_aTracks[0][0], m_aTracks[0][1]), Point(m_aTracks[0][2], m_aTracks[0][3]), Scalar(0, 0, 255), 2, CV_AA);
-  line(m_imgOriginal, Point(m_aTracks[1][0], m_aTracks[1][1]), Point(m_aTracks[1][2], m_aTracks[1][3]), Scalar(0, 0, 255), 2, CV_AA);
+  line(m_imgResult, Point(m_aTracks[0][0], m_aTracks[0][1]), Point(m_aTracks[0][2], m_aTracks[0][3]), Scalar(0, 0, 255), 2, CV_AA);
+  line(m_imgResult, Point(m_aTracks[1][0], m_aTracks[1][1]), Point(m_aTracks[1][2], m_aTracks[1][3]), Scalar(0, 0, 255), 2, CV_AA);
   /// Draw ROI
   for (int i = 0; i < 3; i++)
-    line(m_imgOriginal, poly_points[0][i], poly_points[0][i+1], Scalar(255, 0, 0), 2, CV_AA);
+    line(m_imgResult, poly_points[0][i], poly_points[0][i+1], Scalar(255, 0, 0), 2, CV_AA);
 }
 
 void RailTrack::showWindow(const string &title, const Mat &image)
@@ -169,7 +167,7 @@ vector<Vec4i> RailTrack::extendLines(const Vec4i &l, const Vec4i &l_2)
   float fYint0 = getYintersect(l);
   float fYint1 = getYintersect(l_2);
 
-  int iYmax = m_imgOriginal.rows - 1;
+  int iYmax = m_imgResult.rows - 1;
 
   if (abs(intersection.y - 270) < 50)
   {
@@ -271,16 +269,23 @@ void RailTrack::getCurves(const Mat &imgCanny)
       {
         right_rail.push_back(right_point);
         right_curve = right_point.x;
+
+        Point left_point = right_point;
+        for (int l = 0; l < left_rail.size(); l++)
+          if (right_point.y == left_rail.at(l).y)
+            left_point = left_rail.at(l);
+        for (int k = left_point.x; k <= right_point.x; k++)
+          m_imgResult.at<Vec3b>(Point(k, i)) += Vec3b(0,150,0);
       }
     }
 
     /// Draw curves
     for( int i = 0; i < left_rail.size(); i++ )
       for (int j = -1; j < 15; j++)
-        m_imgOriginal.at<Vec3b>(Point(left_rail.at(i).x + j, left_rail.at(i).y)) = Vec3b(0,255,0);
+        m_imgResult.at<Vec3b>(Point(left_rail.at(i).x + j, left_rail.at(i).y)) = Vec3b(0,255,0);
     for( int i = 0; i < right_rail.size(); i++ )
       for (int j = -14; j < 2; j++)
-        m_imgOriginal.at<Vec3b>(Point(right_rail.at(i).x + j, right_rail.at(i).y)) = Vec3b(0,255,0);
+        m_imgResult.at<Vec3b>(Point(right_rail.at(i).x + j, right_rail.at(i).y)) = Vec3b(0,255,0);
   }
 }
 
@@ -317,18 +322,16 @@ void RailTrack::getROI()
   }
 }
 
-void RailTrack::track(const sensor_msgs::ImageConstPtr& msg)
+void RailTrack::track(const rail_track::FrameConstPtr &msg)
 {
-  Mat m_untouched = cv_bridge::toCvShare(msg, "bgr8")->image;
+  m_imgOriginal = cv_bridge::toCvShare(msg->orig_image, msg, "bgr8")->image;
   Mat imgGrayscale;       // grayscale of input image
   Mat imgCanny;
   Mat imgROI;
-  double gray_mean;
   double sobel_mean;
 
-  m_imgOriginal = m_untouched;
-  cvtColor(m_imgOriginal, imgGrayscale, CV_BGR2GRAY);       // convert to grayscale
-  gray_mean = mean(imgGrayscale)[0];
+  m_imgResult = m_imgOriginal;
+  cvtColor(m_imgResult, imgGrayscale, CV_BGR2GRAY);       // convert to grayscale
   GaussianBlur(imgGrayscale, imgGrayscale, Size(9, 9), 0, 0, BORDER_DEFAULT);
   sobel_mean = doSobel(imgGrayscale);
 
@@ -338,18 +341,20 @@ void RailTrack::track(const sensor_msgs::ImageConstPtr& msg)
   getCurves(imgCanny);
   getROI();
 
-  myfile << gray_mean << "|" << sobel_mean << "|" << line_number << "|" << m_canny << endl;
-  cout << gray_mean << "\t" << sobel_mean << "\t" << line_number << "\t" << m_canny << endl;
+  //myfile << sobel_mean << "|" << line_number << "|" << m_canny << endl;
+  //cout << sobel_mean << "\t" << line_number << "\t" << m_canny << endl;
 
   if (line_number != 10)
-    m_canny = sobel_mean * 251 / 12;
+    m_canny = (sobel_mean - 1.3) * 251 / 12;
 
   //showWindow("imgGrayscale", imgGrayscale);
   showWindow("imgCanny", imgCanny);
   //showWindow("imgROI", imgROI);
-  showWindow("Tracked", m_imgOriginal);
+  showWindow("Tracked", m_imgResult);
 
-  sensor_msgs::ImagePtr im_msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", m_untouched).toImageMsg();
+  sensor_msgs::ImagePtr im_msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", m_imgOriginal).toImageMsg();
+  msg_roi.frame.orig_image = *im_msg;
+  msg_roi.frame.timestamp = msg->timestamp;
   msg_roi.roi_0.x = poly_points[0][0].x;
   msg_roi.roi_0.y = poly_points[0][0].y;
   msg_roi.roi_0.z = 1;
@@ -362,6 +367,5 @@ void RailTrack::track(const sensor_msgs::ImageConstPtr& msg)
   msg_roi.roi_3.x = poly_points[0][3].x;
   msg_roi.roi_3.y = poly_points[0][3].y;
   msg_roi.roi_3.z = 1;
-  msg_roi.orig_image = *im_msg;
   waitKey(1);
 }

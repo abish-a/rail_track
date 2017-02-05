@@ -6,9 +6,10 @@
 #include <opencv2/imgproc/imgproc.hpp>
 #include <iostream>
 #include <string>
+#include <ctime>
 #include "ros/ros.h"
 #include "cv_bridge/cv_bridge.h"
-#include <image_transport/image_transport.h>
+#include "rail_track/Frame.h"
 
 using namespace std;
 using namespace cv;
@@ -23,9 +24,8 @@ private:
   VideoCapture m_video;
   ros::NodeHandle n;
   ros::Rate loop_rate;
-  image_transport::ImageTransport it;
-  image_transport::Publisher frame_pub;
-  sensor_msgs::ImagePtr msg_frame;
+  ros::Publisher frame_pub;
+  rail_track::Frame msg_frame;
 };
 
 #endif // RAILTRACK_VID_H

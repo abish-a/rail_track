@@ -13,6 +13,8 @@
 #include "image_transport/image_transport.h"
 #include "cv_bridge/cv_bridge.h"
 #include "rail_track/Roi.h"
+#include "rail_track/Frame.h"
+#include <ctime>
 #include <fstream>
 
 #define DMAX 260//115//140
@@ -39,11 +41,11 @@ public:
   vector<Vec4i> extendLines(const Vec4i &l, const Vec4i &l_2);
   void getCurves(const Mat &imgCanny);
   void getROI(void);
-  void track(const sensor_msgs::ImageConstPtr &msg);
+  void track(const rail_track::FrameConstPtr &msg);
 
 private:
   Mat m_imgOriginal;
-  Mat m_untouched;
+  Mat m_imgResult;
   int m_canny = 300;
   int line_number;
   Vec4i m_aPrevLines[2];
@@ -57,8 +59,7 @@ private:
   ofstream myfile;
 
   ros::NodeHandle n;
-  image_transport::ImageTransport it;
-  image_transport::Subscriber frame_sub;
+  ros::Subscriber frame_sub;
   ros::Publisher roi_pub;
   ros::Rate loop_rate;
   rail_track::Roi msg_roi;
